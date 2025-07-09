@@ -1,0 +1,28 @@
+# .github/workflows/deploy.yml (or your existing workflow file)
+# ... other steps ...
+
+- name: Brotli Compression
+  # This step runs Brotli compression on all files in the current directory
+  # You might need to adjust 'find .' based on where your build output is
+  run: |
+    # Install brotli if not already available in the runner environment
+    # For Ubuntu/Debian based runners:
+    sudo apt-get update && sudo apt-get install -y brotli
+    # For Alpine based runners:
+    # apk add brotli
+
+    # Compress HTML, CSS, JS files. Add other file types if needed.
+    find . -type f -name "*.html" -exec brotli -Z {} \;
+    find . -type f -name "*.css" -exec brotli -Z {} \;
+    find . -type f -name "*.js" -exec brotli -Z {} \;
+    # You can remove the original files after compression if you only want .br versions
+    # find . -type f -name "*.html" -exec rm {} \;
+    # find . -type f -name "*.css" -exec rm {} \;
+    # find . -type f -name "*.js" -exec rm {} \;
+
+- name: Deploy to GitHub Pages
+  uses: peaceiris/actions-gh-pages@v3
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    publish_dir: ./ # Or your build output directory, e.g., ./build
+

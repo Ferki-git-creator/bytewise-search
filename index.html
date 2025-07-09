@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ByteWise Search</title>
+    <!-- Critical CSS for immediate rendering -->
+    <style>
+        body{font-family:monospace,sans-serif;margin:0;padding:20px;display:flex;flex-direction:column;align-items:center;min-height:100vh;background-color:#1a1a1a;color:#e0e0e0;line-height:1.5;}
+        .container{width:100%;max-width:700px;margin-bottom:20px;}
+        .header{text-align:center;margin-bottom:30px;}
+        .header h1{font-size:32px;margin-bottom:10px;color:#66ccff;}
+        .search-form{display:flex;margin-bottom:15px;border:1px solid #555555;border-radius:0;overflow:hidden;}
+        .search-input{flex-grow:1;padding:10px;font-size:16px;border:none;outline:none;background-color:#333333;color:#e0e0e0;}
+        .search-button{padding:10px 15px;font-size:16px;background-color:#66ccff;color:#1a1a1a;border:none;cursor:pointer;}
+        .search-button:hover{background-color:#44aaff;}
+        .categories-container{display:flex;flex-wrap:wrap;justify-content:center;gap:0;margin-bottom:20px;}
+        .category-button{padding:8px 12px;font-size:14px;border:none;background-color:transparent;color:#e0e0e0;cursor:pointer;text-decoration:underline;margin:0 5px;}
+        .category-button:not(:last-child)::after{content:"|";margin-left:10px;color:#888888;}
+        .category-button.active{color:#66ccff;font-weight:bold;}
+        .category-button:hover:not(.active){color:#aaaaaa;}
+        .results-area{width:100%;}
+        .search-result{margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #333333;}
+        .search-result:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+        .result-title{font-size:18px;margin-bottom:5px;}
+        .result-title a{color:#66ccff;text-decoration:none;}
+        .result-title a:hover{text-decoration:underline;}
+        .result-url{font-size:14px;color:#90ee90;margin-bottom:5px;word-break:break-all;}
+        .result-description{font-size:14px;color:inherit;}
+        .result-description strong{font-weight:bold;color:#ffcc00;}
+        .result-actions{margin-top:10px;}
+        .result-action-button{padding:5px 10px;font-size:13px;background-color:#444444;color:#e0e0e0;border:1px solid #666666;cursor:pointer;margin-right:10px;}
+        .result-action-button:hover{background-color:#555555;}
+        .no-results-message{text-align:center;color:#888888;margin-top:30px;}
+        .maybe-try-container{background-color:#2a2a2a;border:1px solid #444444;padding:10px;margin-top:20px;text-align:center;}
+        .maybe-try-categories button{background-color:#3a3a3a;border:1px solid #555555;color:#66ccff;margin:5px;padding:5px 10px;cursor:pointer;text-decoration:underline;}
+        .maybe-try-categories button:hover{background-color:#4a4a4a;}
+        .pagination-container{display:flex;justify-content:center;align-items:center;margin-top:20px;gap:5px;}
+        .pagination-button{padding:8px 12px;font-size:14px;background-color:#66ccff;color:#1a1a1a;border:none;cursor:pointer;border-radius:0;}
+        .pagination-button:disabled{background-color:#555555;cursor:not-allowed;}
+        .pagination-button.active{background-color:#44aaff;}
+        .page-number-button{padding:8px 12px;font-size:14px;background-color:#333333;color:#e0e0e0;border:1px solid #555555;cursor:pointer;border-radius:0;}
+        .page-number-button.active{background-color:#66ccff;color:#1a1a1a;border-color:#66ccff;}
+        .footer-controls{display:flex;justify-content:center;flex-wrap:wrap;gap:15px;margin-top:30px;padding-top:20px;border-top:1px solid #333333;width:100%;max-width:700px;}
+        .footer-button{padding:8px 15px;font-size:14px;border:1px solid #555555;border-radius:0;background-color:#333333;color:#e0e0e0;cursor:pointer;}
+        .footer-button:hover{background-color:#444444;}
+        .search-history-dropdown{position:absolute;width:calc(100% - 2px);max-height:200px;overflow-y:auto;background-color:#333333;border:1px solid #555555;border-top:none;z-index:100;box-sizing:border-box;}
+        .history-item{padding:8px 10px;cursor:pointer;font-size:14px;color:#e0e0e0;}
+        .history-item:hover{background-color:#444444;}
+        .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:1000;}
+        .modal-content{background-color:#222222;padding:25px;border-radius:0;width:90%;max-width:500px;position:relative;border:1px solid #555555;max-height:90vh;overflow-y:auto;}
+        .modal-close-button{position:absolute;top:10px;right:15px;font-size:24px;cursor:pointer;color:#888888;}
+        .modal-close-button:hover{color:#e0e0e0;}
+        .modal-text-content{white-space:pre-wrap;word-wrap:break-word;font-size:14px;line-height:1.6;}
+        .traffic-indicator{font-size:12px;color:#90ee90;margin-top:10px;text-align:center;}
+        .low-data-mode .result-description{font-size:12px;max-height:3em;overflow:hidden;text-overflow:ellipsis;} /* Truncate description in low-data mode */
+    </style>
+</head>
+<body class="dark">
+
+    <div class="container">
+        <div class="header">
+            <h1>ByteWise Search</h1>
+            <p>Fast search with traffic saving. Choose a category for more precise results!</p>
+        </div>
+
+        <div style="position: relative;">
+            <div class="search-form">
+                <input type="text" id="search-input" placeholder="Try: waterfalls photos" class="search-input">
+                <button id="search-button" class="search-button">Search</button>
+            </div>
+            <div id="search-history-dropdown" class="search-history-dropdown" style="display: none;"></div>
+        </div>
+
+        <div id="categories-container" class="categories-container">
+        </div>
+
+        <div id="results-area" class="results-area">
+            <p id="no-results-message" class="no-results-message" style="display: none;">
+                No results found. Try a different query or category.
+            </p>
+            <div id="maybe-try-container" class="maybe-try-container" style="display: none;">
+                <p>Maybe you were looking in:</p>
+                <div id="maybe-try-categories" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 10px;"></div>
+            </div>
+        </div>
+
+        <div id="pagination-container" class="pagination-container" style="display: none;">
+            <button id="prev-page" class="pagination-button" disabled>Previous</button>
+            <div id="page-numbers" style="display: flex; gap: 5px;"></div>
+            <button id="next-page" class="pagination-button">Next</button>
+        </div>
+
+        <div class="footer-controls">
+            <button id="clear-history-button" class="footer-button">
+                Clear History
+            </button>
+            <button id="about-us-button" class="footer-button">
+                About Us
+            </button>
+        </div>
+        <div id="traffic-indicator" class="traffic-indicator">
+            Simulated Traffic Saved: <span id="traffic-count">0 KB</span>
+        </div>
+    </div>
+
+    <!-- About Us Modal -->
+    <div id="about-us-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button id="close-modal-button" class="modal-close-button">&times;</button>
+            <h2>About Us</h2>
+            <p>
+                We are "ByteWise Search", designed for fast and efficient information retrieval with minimal internet traffic consumption.
+            </p>
+            <p>
+                Our mission:
+                <ul>
+                    <li><strong>Speed:</strong> Optimized for instant response.</li>
+                    <li><strong>Economy:</strong> Category selection helps save your traffic by loading only necessary data.</li>
+                    <li><strong>Privacy:</b> We do not collect your personal data; all search history is stored locally.</li>
+                    <li><strong>TextFlow View:</strong> Use "Open with TextFlow" to view a simplified, text-only version of content, designed for maximum traffic savings.</li>
+                </ul>
+            </p>
+            <p>
+                <strong>Important:</strong> This version of the search engine attempts to fetch *real* results from the DuckDuckGo Instant Answer API. This API is free and allows direct browser requests, making this a truly zero-cost solution. If the API does not provide results for your query, it will fall back to displaying its internal mock data. This setup is designed for maximum traffic economy by performing all operations locally in your browser when possible, or using a lightweight external API when needed.
+            </p>
+            <p>Thank you for choosing us!</p>
+        </div>
+    </div>
+
+    <!-- TextFlow View Modal -->
+    <div id="textflow-view-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button id="close-textflow-view-modal-button" class="modal-close-button">&times;</button>
+            <h2 id="textflow-view-title"></h2>
+            <pre id="textflow-view-content" class="modal-text-content"></pre>
+        </div>
+    </div>
+
+    <script defer>
+        // Polyfills for older browsers
+        if (!NodeList.prototype.forEach) {
+            NodeList.prototype.forEach = Array.prototype.forEach;
+        }
+
+        // DOM Elements
+        const searchInput = document.getElementById('search-input');
+        const searchButton = document.getElementById('search-button');
+        const categoriesContainer = document.getElementById('categories-container');
+        const resultsArea = document.getElementById('results-area');
+        const noResultsMessage = document.getElementById('no-results-message');
+        const maybeTryContainer = document.getElementById('maybe-try-container');
+        const maybeTryCategories = document.getElementById('maybe-try-categories');
+        const paginationContainer = document.getElementById('pagination-container');
+        const prevPageButton = document.getElementById('prev-page');
+        const nextPageButton = document.getElementById('next-page');
+        const pageNumbersContainer = document.getElementById('page-numbers');
+        const clearHistoryButton = document.getElementById('clear-history-button');
+        const searchHistoryDropdown = document.getElementById('search-history-dropdown');
+        const aboutUsButton = document.getElementById('about-us-button');
+        const aboutUsModal = document.getElementById('about-us-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const textflowViewModal = document.getElementById('textflow-view-modal');
+        const closeTextflowViewModalButton = document.getElementById('close-textflow-view-modal-button');
+        const textflowViewTitle = document.getElementById('textflow-view-title');
+        const textflowViewContent = document.getElementById('textflow-view-content');
+        const trafficCountElement = document.getElementById('traffic-count');
+
+        // Global State
+        let currentCategory = 'all';
+        let searchHistory = JSON.parse(localStorage.getItem('searchHistory')) || [];
+        let currentPage = 1;
+        const resultsPerPage = 5;
+        let allSearchResults = [];
+        let simulatedTrafficSaved = 0; // In KB
+
+        // Category Data (Extended and General)
+        const categories = [
+            { id: 'all', name: 'All', keywords: [] },
+            { id: 'web', name: 'Web', keywords: ['website', 'site', 'page', 'info', 'blog', 'article', 'online', 'internet'] },
+            { id: 'images', name: 'Images', keywords: ['photo', 'picture', 'pics', 'gallery', 'art', 'visual', 'graphic'] },
+            { id: 'videos', name: 'Videos', keywords: ['video', 'youtube', 'clip', 'movie', 'film', 'stream', 'tv'] },
+            { id: 'news', name: 'News', keywords: ['news', 'latest', 'updates', 'headlines', 'current events', 'breaking', 'report'] },
+            { id: 'maps', name: 'Maps', keywords: ['map', 'location', 'address', 'route', 'directions', 'places', 'navigate', 'geo'] },
+            { id: 'shopping', name: 'Shopping', keywords: ['buy', 'shop', 'product', 'price', 'store', 'deal', 'ecommerce', 'retail', 'sale'] },
+            { id: 'books', name: 'Books', keywords: ['book', 'literature', 'novel', 'author', 'read', 'library', 'ebook', 'story'] },
+            { id: 'finance', name: 'Finance', keywords: ['stock', 'market', 'economy', 'money', 'investing', 'business', 'funds', 'currency', 'bank'] },
+            { id: 'science', name: 'Science', keywords: ['science', 'research', 'physics', 'biology', 'chemistry', 'astronomy', 'discovery', 'experiment', 'study'] },
+            { id: 'technology', name: 'Technology', keywords: ['tech', 'gadget', 'software', 'hardware', 'app', 'innovation', 'IT', 'computer', 'digital', 'mobile'] },
+            { id: 'health', name: 'Health', keywords: ['health', 'medicine', 'illness', 'symptom', 'treatment', 'wellness', 'diet', 'fitness', 'doctor', 'hospital'] },
+            { id: 'education', name: 'Education', keywords: ['learn', 'course', 'school', 'university', 'study', 'tutorial', 'knowledge', 'academy', 'class', 'lesson'] },
+            { id: 'travel', name: 'Travel', keywords: ['travel', 'destination', 'flight', 'hotel', 'trip', 'vacation', 'tourism', 'journey', 'explore'] },
+            { id: 'sports', name: 'Sports', keywords: ['sport', 'game', 'team', 'score', 'match', 'athlete', 'league', 'championship', 'play'] },
+            { id: 'music', name: 'Music', keywords: ['song', 'artist', 'album', 'band', 'genre', 'listen', 'audio', 'concert'] },
+            { id: 'recipes', name: 'Recipes', keywords: ['recipe', 'cook', 'food', 'dish', 'ingredient', 'kitchen', 'cooking', 'cuisine'] },
+            { id: 'code', name: 'Code', keywords: ['programming', 'javascript', 'python', 'html', 'css', 'development', 'coding', 'developer', 'software'] },
+            // 5 new general categories
+            { id: 'community', name: 'Community', keywords: ['forum', 'social', 'blog', 'network', 'group', 'discussion', 'chat', 'online community'] },
+            { id: 'reference', name: 'Reference', keywords: ['dictionary', 'encyclopedia', 'glossary', 'definition', 'quote', 'facts', 'data', 'information'] },
+            { id: 'entertainment', name: 'Entertainment', keywords: ['games', 'movies', 'tv series', 'hobbies', 'fun', 'leisure', 'art', 'culture', 'show'] },
+            { id: 'business', name: 'Business', keywords: ['companies', 'startup', 'industry', 'career', 'job', 'management', 'economy', 'corporate'] },
+            { id: 'environment', name: 'Environment', keywords: ['ecology', 'nature', 'climate', 'sustainability', 'pollution', 'conservation', 'green', 'earth'] }
+        ];
+
+        // UI Initialization
+        function initializeCategories() {
+            categoriesContainer.innerHTML = '';
+            categories.forEach(cat => {
+                const button = document.createElement('button');
+                button.id = `category-${cat.id}`;
+                button.className = `category-button ${currentCategory === cat.id ? 'active' : ''}`;
+                button.textContent = cat.name;
+                button.title = cat.name;
+                button.addEventListener('click', () => {
+                    updateCategorySelection(cat.id);
+                    // If user changes category, perform search with current query
+                    if (searchInput.value.trim() !== '') {
+                        handleSearch();
+                    }
+                });
+                categoriesContainer.appendChild(button);
+            });
+        }
+
+        function updateCategorySelection(selectedId) {
+            currentCategory = selectedId;
+            document.querySelectorAll('.category-button').forEach(button => {
+                if (button.id === `category-${selectedId}`) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+        }
+
+        // Local Storage Functions
+        function saveSearchHistory(query) {
+            const trimmedQuery = query.trim();
+            if (trimmedQuery && !searchHistory.includes(trimmedQuery)) {
+                searchHistory.unshift(trimmedQuery);
+                searchHistory = searchHistory.slice(0, 20);
+                localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+            }
+        }
+
+        function loadSearchHistory() {
+            searchHistoryDropdown.innerHTML = '';
+            if (searchHistory.length === 0) {
+                searchHistoryDropdown.style.display = 'none';
+                return;
+            }
+
+            searchHistory.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.textContent = item;
+                div.addEventListener('click', () => {
+                    searchInput.value = item;
+                    searchHistoryDropdown.style.display = 'none';
+                    handleSearch();
+                });
+                searchHistoryDropdown.appendChild(div);
+            });
+            searchHistoryDropdown.style.display = 'block';
+        }
+
+        function clearLocalHistory() {
+            searchHistory = [];
+            localStorage.removeItem('searchHistory');
+            loadSearchHistory();
+            alert('Search history cleared!');
+        }
+
+        // Traffic Indicator
+        function updateTrafficCounter(bytesSaved) {
+            simulatedTrafficSaved += bytesSaved / 1024; // Convert bytes to KB
+            trafficCountElement.textContent = `${simulatedTrafficSaved.toFixed(2)} KB`;
+        }
+
+        // Search Logic (Attempts to fetch from DuckDuckGo API, falls back to mock)
+        async function fetchRealSearchResults(query) {
+            const duckduckgoApiUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&pretty=1`;
+            const results = [];
+
+            const cacheKey = `ddg-${query}`;
+            const cachedData = localStorage.getItem(cacheKey);
+            const ONE_HOUR = 60 * 60 * 1000; // milliseconds
+
+            if (cachedData) {
+                const { timestamp, data } = JSON.parse(cachedData);
+                if (Date.now() - timestamp < ONE_HOUR) {
+                    console.log("Returning cached results for:", query);
+                    return data;
+                } else {
+                    console.log("Cached results expired for:", query);
+                    localStorage.removeItem(cacheKey); // Clear expired cache
+                }
+            }
+
+            try {
+                const apiResponse = await fetch(duckduckgoApiUrl);
+                const data = await apiResponse.json();
+
+                // Process Instant Answer / Abstract
+                if (data.AbstractText && data.AbstractURL) {
+                    results.push({
+                        domain: new URL(data.AbstractURL).hostname,
+                        title: data.AbstractSource ? `${data.AbstractText.substring(0, Math.min(data.AbstractText.length, 100))}... - ${data.AbstractSource}` : data.AbstractText,
+                        url: data.AbstractURL,
+                        description: data.AbstractText,
+                        plainTextContent: data.AbstractText,
+                        category: 'web' // Default to web
+                    });
+                } else if (data.Abstract && data.AbstractURL) {
+                     results.push({
+                        domain: new URL(data.AbstractURL).hostname,
+                        title: data.AbstractSource ? `${data.Abstract.substring(0, Math.min(data.Abstract.length, 100))}... - ${data.AbstractSource}` : data.Abstract,
+                        url: data.AbstractURL,
+                        description: data.Abstract,
+                        plainTextContent: data.Abstract,
+                        category: 'web'
+                    });
+                }
+
+                // Process Related Topics (often contains web results)
+                if (data.RelatedTopics && Array.isArray(data.RelatedTopics)) {
+                    data.RelatedTopics.forEach(topic => {
+                        if (topic.Result && topic.FirstURL) {
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = topic.Result;
+                            const titleElement = tempDiv.querySelector('a');
+                            const title = titleElement ? titleElement.textContent.replace(/\s*-\s*DuckDuckGo$/i, '') : topic.Text || 'No Title';
+                            const description = topic.Text || 'No description available.';
+
+                            results.push({
+                                domain: new URL(topic.FirstURL).hostname,
+                                title: title,
+                                url: topic.FirstURL,
+                                description: description,
+                                plainTextContent: description,
+                                category: 'web' // Default to web
+                            });
+                        }
+                    });
+                }
+
+                if (results.length > 0) {
+                    localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: results }));
+                }
+                return results;
+
+            } catch (error) {
+                console.error("Error fetching real search results from DuckDuckGo API:", error);
+                // No alert here, just fall back quietly
+                return []; // Return empty array to trigger fallback
+            }
+        }
+
+        // Local Mock Data (Fallback)
+        function getLocalMockData(query, categoryId) {
+            const lowerCaseQuery = query.toLowerCase();
+            const results = [];
+
+            const mockData = [
+                { domain: 'wikipedia.org', title: 'Leonardo da Vinci - Wikipedia', url: 'https://en.wikipedia.org/wiki/Leonardo_da_Vinci', description: 'Leonardo di ser Piero da Vinci was an Italian polymath of the High Renaissance who was active as a painter, draughtsman, engineer, scientist, theorist, sculptor, and architect.', category: 'knowledge', plainTextContent: 'Leonardo da Vinci (1452-1519) was an Italian polymath of the High Renaissance. He was active as a painter, draughtsman, engineer, scientist, theorist, sculptor, and architect. His fame initially rested on his achievements as a painter, but he also became known for his notebooks, in which he made drawings and notes on a variety of subjects, including anatomy, astronomy, botany, cartography, and paleontology. Leonardo is widely regarded to have been a genius who epitomized the Renaissance humanist ideal.' },
+                { domain: 'nationalgeographic.com', title: 'The World\'s Most Beautiful Waterfalls - National Geographic', url: 'https://www.nationalgeographic.com/waterfalls/best-waterfalls', description: 'Discover breathtaking waterfalls that captivate with their beauty and grandeur. Photos and descriptions.', category: 'images', plainTextContent: 'Waterfalls are natural wonders that inspire awe. From the thundering cascades of Niagara to the serene beauty of smaller falls, they offer stunning visual experiences. National Geographic explores the geology, ecology, and cultural significance of these majestic formations around the globe. Common types include plunge, horsetail, and tiered waterfalls, each with unique characteristics shaped by rock erosion and water flow.' },
+                { domain: 'unsplash.com', title: 'Free Cat Photos - Unsplash', url: 'https://unsplash.com/s/photos/cats', description: 'A large collection of high-quality cat photos for any purpose. Download for free.', category: 'images', plainTextContent: 'Unsplash offers a vast collection of free, high-resolution cat photos. These images are suitable for personal and commercial use, without requiring attribution. Browse thousands of pictures of various cat breeds, from playful kittens to majestic adult cats, captured in diverse settings and moods. The platform allows creators to share their work and users to find inspiring visuals.' },
+                { domain: 'bbc.com', title: 'Latest News from Ukraine and the World - BBC News', url: 'https://www.bbc.com/news/world-europe-60520639', description: 'Current news, analysis, and reports on events in Ukraine and around the world.', category: 'news', plainTextContent: 'BBC News provides up-to-date coverage of events in Ukraine and global affairs. Reports include geopolitical analysis, humanitarian impact, and international responses. The BBC aims to deliver impartial news, offering diverse perspectives on complex issues. Key topics often include diplomatic efforts, economic sanctions, and the daily lives of affected populations.' },
+                { domain: 'youtube.com', title: 'How to Draw a Cat - Beginner Tutorial', url: 'https://www.youtube.com/watch?v=cat_drawing_tutorial', description: 'Step-by-step video tutorial on drawing cats. Learning for children and adults.', category: 'videos', plainTextContent: 'This beginner-friendly YouTube tutorial guides you through drawing a cat step-by-step. It covers basic shapes, proportions, and adding details like fur and eyes. Suitable for all ages, the video breaks down the process into easy-to-follow segments, making art accessible and fun. Materials typically include paper, pencil, and an eraser.' },
+                { domain: 'google.com/maps', title: 'Google Maps - Find Address', url: 'https://www.google.com/maps/search/Kyiv', description: 'Search for addresses, routes, and objects on an interactive map. Street view.', category: 'maps', plainTextContent: 'Google Maps allows users to find addresses, get directions, and explore locations globally. Features include satellite imagery, street view, and real-time traffic updates. Users can search for points of interest, businesses, and public transport options. The platform is widely used for navigation and geographical exploration.' },
+                { domain: 'amazon.com', title: 'Best Selling Books on Amazon', url: 'https://www.amazon.com/bestsellers/books', description: 'Discover the best selling books in various categories on Amazon. Find your next great read.', category: 'shopping', plainTextContent: 'Amazon\'s Best Sellers in Books section features the most popular titles based on sales. Explore categories like fiction, non-fiction, children\'s books, and more. The list is updated hourly, providing insights into current reading trends. Customers can find new releases, classic works, and highly-rated books.' },
+                { domain: 'goodreads.com', title: 'Popular Books - Goodreads', url: 'https://www.goodreads.com/shelf/show/popular', description: 'Explore a list of popular books on Goodreads, a social cataloging website for readers.', category: 'books', plainTextContent: 'Goodreads is a social cataloging website that allows users to read and review books, and connect with other readers. The "Popular Books" section showcases titles that are currently trending or highly rated by the community. Users can track their reading, discover new books, and participate in discussions about literature.' },
+                { domain: 'investopedia.com', title: 'Stock Market Basics - Investopedia', url: 'https://www.investopedia.com/terms/s/stockmarket.asp', description: 'Learn the basics of the stock market, how it works, and key terms for beginners.', category: 'finance', plainTextContent: 'Investopedia provides comprehensive resources for understanding the stock market. Learn about stocks, bonds, mutual funds, and other investment vehicles. The site offers definitions, tutorials, and articles on financial concepts, helping beginners navigate the complexities of personal finance and investing. Topics include market analysis, trading strategies, and economic indicators.' },
+                { domain: 'nasa.gov', title: 'Mars Exploration - NASA', url: 'https://www.nasa.gov/mars/', description: 'Latest news and discoveries from NASA missions exploring the planet Mars.', category: 'science', plainTextContent: 'NASA\'s Mars exploration program aims to understand the Red Planet\'s geology, climate, and potential for life. Discover the latest news, images, and scientific findings from rovers like Perseverance and Curiosity, and orbiters such as Mars Reconnaissance Orbiter. Learn about past missions, future plans, and the challenges of human exploration of Mars.' },
+                { domain: 'techradar.com', title: 'Latest Tech News & Reviews - TechRadar', url: 'https://www.techradar.com/', description: 'Get the latest tech news, reviews, and buying guides for phones, laptops, and more.', category: 'technology', plainTextContent: 'TechRadar offers comprehensive coverage of the latest technology news, in-depth reviews, and expert buying guides. Find information on smartphones, laptops, cameras, gaming consoles, and smart home devices. The site provides insights into emerging tech trends, product comparisons, and tips to help consumers make informed purchasing decisions.' },
+                { domain: 'who.int', title: 'World Health Organization', url: 'https://www.who.int/en/', description: 'Official WHO website. Information on global health, diseases, and prevention.', category: 'health', plainTextContent: 'The World Health Organization (WHO) is a specialized agency of the United Nations responsible for international public health. Its main role is to direct and coordinate international health within the United Nations system. WHO\'s primary areas of work include health systems, promoting health through the life course, preparedness, surveillance and response to health emergencies, and noncommunicable diseases.' },
+                { domain: 'coursera.org', title: 'Online Courses & Degrees - Coursera', url: 'https://www.coursera.org/', description: 'Access online courses and degrees from top universities and companies worldwide.', category: 'education', plainTextContent: 'Coursera offers a wide range of online courses, specializations, and degrees from leading universities and companies. Learn new skills in fields like data science, technology, business, and arts. The platform provides flexible learning options, peer-graded assignments, and certificates of completion to enhance career development.' },
+                { domain: 'lonelyplanet.com', title: 'Travel Guides & Information - Lonely Planet', url: 'https://www.lonelyplanet.com/', description: 'Your ultimate travel guide, with destination information, travel tips, and inspiration.', category: 'travel', plainTextContent: 'Lonely Planet provides comprehensive travel guides and inspiration for destinations worldwide. Find detailed information on attractions, accommodations, restaurants, and local culture. The site offers practical travel tips, itineraries, and advice for planning unforgettable adventures, whether you\'re a solo traveler, family, or backpacker.' },
+                { domain: 'espn.com', title: 'ESPN Official Site - Sports News, Scores, Stats', url: 'https://www.espn.com/', description: 'The worldwide leader in sports. Scores, highlights, news, and analysis for all major sports.', category: 'sports', plainTextContent: 'ESPN.com is the official site for sports news, scores, and statistics. Get real-time updates, highlights, and in-depth analysis across various sports including football, basketball, baseball, soccer, and more. The platform covers major leagues, tournaments, and provides fantasy football resources.' },
+                { domain: 'spotify.com', title: 'Spotify - Web Player', url: 'https://open.spotify.com/', description: 'Listen to music and podcasts on Spotify. Discover new artists and create playlists.', category: 'music', plainTextContent: 'Spotify is a digital music, podcast, and video service that gives you access to millions of songs and other content from creators all over the world. It offers personalized recommendations, curated playlists, and the ability to discover new music based on your listening habits. Available on various devices.' },
+                { domain: 'allrecipes.com', title: 'Allrecipes - Recipes, Dinners & Easy Meal Ideas', url: 'https://www.allrecipes.com/', description: 'Find trusted recipes for home cooks. Browse thousands of easy cooking recipes.', category: 'recipes', plainTextContent: 'Allrecipes.com is a popular resource for home cooks, offering a vast collection of recipes for various cuisines and occasions. Find easy meal ideas, baking recipes, and cooking tips. Users can rate recipes, leave reviews, and share their own creations, making it a community-driven platform for culinary inspiration.' },
+                { domain: 'techcrunch.com', title: 'Latest Tech Startups - TechCrunch', url: 'https://techcrunch.com/startups/', description: 'News and analysis on the latest technology startups, funding rounds, and industry trends.', category: 'technology', plainTextContent: 'TechCrunch\'s startup section covers emerging technology companies, venture capital funding, and entrepreneurial trends. Stay informed on new product launches, acquisitions, and the innovators shaping the future of tech. The platform provides insights into the startup ecosystem and the challenges faced by new businesses.' },
+                { domain: 'webmd.com', title: 'Symptoms Checker - WebMD', url: 'https://www.webmd.com/symptoms', description: 'Use WebMD\'s Symptom Checker to find information about your symptoms and conditions.', category: 'health', plainTextContent: 'WebMD\'s Symptom Checker helps users understand potential causes of their symptoms. By selecting symptoms, users can explore related conditions, learn about their severity, and find information on treatment options. This tool is for informational purposes and should not replace professional medical advice.' },
+                { domain: 'britannica.com', title: 'Encyclopedia Britannica', url: 'https://www.britannica.com/', description: 'Authoritative articles on history, science, biography, and more.', category: 'knowledge', plainTextContent: 'Encyclopedia Britannica offers authoritative and comprehensive articles on a vast range of subjects, including history, science, arts, geography, and biography. It is a trusted source for in-depth information, written by experts. The online version provides continuously updated content, multimedia, and interactive features for learning and research.' },
+                { domain: 'nytimes.com', title: 'The New York Times - Business Section', url: 'https://www.nytimes.com/section/business', description: 'Breaking news and analysis on business, economy, and finance from The New York Times.', category: 'finance', plainTextContent: 'The New York Times Business section provides breaking news, in-depth analysis, and reporting on global business, finance, and economic trends. Coverage includes corporate news, market movements, technological advancements, and the impact of economic policies. It offers insights into industries, companies, and the broader financial landscape.' },
+                { domain: 'tripadvisor.com', title: 'Hotels, Flights, Restaurants - TripAdvisor', url: 'https://www.tripadvisor.com/', description: 'Read reviews, compare prices, and book hotels, flights, and restaurants for your trip.', category: 'travel', plainTextContent: 'TripAdvisor is a leading travel platform where users can read reviews, compare prices, and book hotels, flights, and restaurants. It offers millions of reviews and opinions from travelers worldwide, helping users plan and book the perfect trip. Find recommendations for attractions, activities, and local experiences.' },
+                { domain: 'khanacademy.org', title: 'Free Online Courses, Lessons & Practice - Khan Academy', url: 'https://www.khanacademy.org/', description: 'Learn for free about math, art, computer programming, economics, physics, chemistry, biology, medicine, finance, history, and more.', category: 'education', plainTextContent: 'Khan Academy offers free online courses, lessons, and practice exercises across a wide range of subjects. From math and science to humanities and computer programming, it provides educational resources for learners of all ages. The platform aims to provide a free, world-class education for anyone, anywhere.' },
+                { domain: 'nfl.com', title: 'NFL.com - Official Site of the National Football League', url: 'https://www.nfl.com/', description: 'The official source for NFL news, scores, videos, and more.', category: 'sports', plainTextContent: 'NFL.com is the official website of the National Football League, providing comprehensive coverage of American football. Get the latest news, game scores, video highlights, player stats, and team information. The site covers the regular season, playoffs, Super Bowl, and provides fantasy football resources.' },
+                { domain: 'genius.com', title: 'Genius - Song Lyrics & Knowledge', url: 'https://genius.com/', description: 'The world\'s biggest collection of song lyrics and crowdsourced musical knowledge.', category: 'music', plainTextContent: 'Genius is a platform that provides lyrics to songs and crowdsourced annotations and interpretations of those lyrics. Users can explore the meanings behind their favorite songs, learn about artists, and contribute their own insights. It covers various music genres and serves as a rich knowledge base for music enthusiasts.' },
+                { domain: 'foodnetwork.com', title: 'Food Network - Recipes, Shows, Chefs', url: 'https://www.foodnetwork.com/', description: 'Find easy recipes, healthy recipes, and cooking techniques from your favorite Food Network chefs.', category: 'recipes', plainTextContent: 'Food Network offers a vast collection of recipes, cooking shows, and culinary tips from celebrity chefs. Explore easy dinner ideas, healthy meals, baking recipes, and holiday dishes. The site provides step-by-step instructions, video tutorials, and inspiration for home cooks of all skill levels.' },
+                { domain: 'developer.android.com', title: 'Android Developers - Build apps for Android', url: 'https://developer.android.com/', description: 'Official site for Android developers. Provides tools, documentation, and training to create apps for Android.', category: 'code', plainTextContent: 'The official Android Developers website offers comprehensive resources for building applications for the Android platform. Find documentation, API references, tutorials, and tools like Android Studio. Learn about UI design, data storage, connectivity, and performance optimization to create high-quality Android apps for various devices.' },
+                { domain: 'google.com', title: 'Google - Search Engine', url: 'https://www.google.com/', description: 'The world\'s most popular search engine. Find information, images, videos, and more.', category: 'web', plainTextContent: 'Google is a multinational technology company focusing on online advertising, search engine technology, cloud computing, computer software, quantum computing, e-commerce, artificial intelligence, and consumer electronics. Its flagship product is the Google Search engine, which is the most visited website in the world.' },
+                { domain: 'microsoft.com', title: 'Microsoft Official Homepage', url: 'https://www.microsoft.com/en-us/', description: 'Explore Microsoft products and services for your home or business.', category: 'web', plainTextContent: 'Microsoft Corporation is an American multinational technology corporation that produces computer software, consumer electronics, personal computers, and related services. Its best-known software products are the Microsoft Windows line of operating systems, the Microsoft Office suite, and the Internet Explorer and Edge web browsers.' },
+                { domain: 'duckduckgo.com', title: 'DuckDuckGo - Privacy, simplified.', url: 'https://duckduckgo.com/', description: 'The Internet privacy company that empowers you to seamlessly take control of your personal information online, without any tradeoffs.', category: 'web', plainTextContent: 'DuckDuckGo is an internet search engine that emphasizes protecting searchers\' privacy and avoiding the filter bubble of personalized search results. It differentiates itself from other search engines by not profiling its users and by showing all users the same search results for a given query.' },
+                // New mock data for new categories
+                { domain: 'reddit.com', title: 'Reddit - Dive into anything', url: 'https://www.reddit.com/', description: 'Reddit is a network of communities based on people\'s interests. Find communities you\'re interested in, and join conversations.', category: 'community', plainTextContent: 'Reddit is a social news aggregation, web content rating, and discussion website. Registered members submit content to the site such as links, text posts, images, and videos, which are then voted up or down by other members. Posts are organized by subject into communities called "subreddits".' },
+                { domain: 'quora.com', title: 'Quora - A place to share knowledge and better understand the world', url: 'https://www.quora.com/', description: 'Quora is a Q&A platform that empowers people to share and grow the world’s knowledge.', category: 'community', plainTextContent: 'Quora is an American question-and-answer website where questions are asked, answered, and organized by its community of users. The company was founded in June 2009, and the website was launched on June 21, 2010. Quora aggregates questions and answers to topics.' },
+                { domain: 'merriam-webster.com', title: 'Merriam-Webster Dictionary', url: 'https://www.merriam-webster.com/', description: 'The most trusted dictionary and thesaurus for words, meanings, and pronunciations.', category: 'reference', plainTextContent: 'Merriam-Webster is America\'s oldest dictionary publisher. It provides definitions, pronunciations, synonyms, and antonyms for millions of words. The online dictionary also features word games, quizzes, and a word of the day. It is a comprehensive resource for language learners and enthusiasts.' },
+                { domain: 'goodreads.com', title: 'Famous Quotes - Goodreads', url: 'https://www.goodreads.com/quotes', description: 'Browse thousands of famous quotes by authors, topics, and more.', category: 'reference', plainTextContent: 'Goodreads offers a vast collection of famous quotes from literature, historical figures, and various topics. Users can browse quotes by author, subject, or popularity. It\'s a great resource for finding inspiration, wisdom, or just a memorable line for any occasion.' },
+                { domain: 'ign.com', title: 'IGN - Video Game News, Reviews, Guides', url: 'https://www.ign.com/', description: 'Your source for the latest video game news, reviews, previews, walkthroughs, and more.', category: 'entertainment', plainTextContent: 'IGN is a leading online publication for video game news, reviews, and guides. It covers all major gaming platforms, including PC, consoles, and mobile. Find in-depth reviews of new releases, previews of upcoming games, and comprehensive walkthroughs to help you master your favorite titles.' },
+                { domain: 'rottentomatoes.com', title: 'Rotten Tomatoes - Movie Reviews, Trailers, & Showtimes', url: 'https://www.rottentomatoes.com/', description: 'Your source for movie reviews, trailers, and showtimes. Find out what critics and audiences are saying.', category: 'entertainment', plainTextContent: 'Rotten Tomatoes is an American review-aggregation website for film and television. It provides information about movies and TV shows, including reviews from critics and audiences, trailers, and showtimes. The site is known for its "Tomatometer" score, which indicates the percentage of positive reviews.' },
+                { domain: 'forbes.com', title: 'Forbes - Business, Finance, Technology', url: 'https://www.forbes.com/', description: 'Forbes is a global media company, focusing on business, investing, technology, entrepreneurship, leadership, and lifestyle.', category: 'business', plainTextContent: 'Forbes is a global media company, best known for its magazine and website, which feature articles on business, finance, investing, technology, entrepreneurship, leadership, and lifestyle. Forbes is also known for its lists, including "The World\'s Billionaires" and "Fortune 500".' },
+                { domain: 'linkedin.com', title: 'LinkedIn - Log In or Sign Up', url: 'https://www.linkedin.com/', description: 'LinkedIn is the world\'s largest professional network, with hundreds of millions of members worldwide.', category: 'business', plainTextContent: 'LinkedIn is a business and employment-oriented social media platform that operates via websites and mobile apps. It is primarily used for professional networking and career development, and allows job seekers to post their CVs and employers to post jobs.' },
+                { domain: 'epa.gov', title: 'Environmental Protection Agency', url: 'https://www.epa.gov/', description: 'The U.S. Environmental Protection Agency (EPA) works to protect human health and the environment.', category: 'environment', plainTextContent: 'The U.S. Environmental Protection Agency (EPA) is an independent agency of the United States federal government whose mission is to protect human and environmental health. The EPA works to ensure that Americans have clean air, land, and water; and to reduce environmental risks based on the best available scientific information.' },
+                { domain: 'worldwildlife.org', title: 'World Wildlife Fund', url: 'https://www.worldwildlife.org/', description: 'WWF works to conserve nature and reduce the most pressing threats to the diversity of life on Earth.', category: 'environment', plainTextContent: 'The World Wildlife Fund (WWF) is an international non-governmental organization founded in 1961 that works in the field of wilderness preservation and the reduction of human impact on the environment. It is the world\'s largest conservation organization, with over five million supporters worldwide.' }
+            ];
+
+            mockData.forEach(item => {
+                const matchesQuery = item.title.toLowerCase().includes(lowerCaseQuery) ||
+                                     item.description.toLowerCase().includes(lowerCaseQuery) ||
+                                     (item.plainTextContent && item.plainTextContent.toLowerCase().includes(lowerCaseQuery));
+
+                const matchesCategory = (categoryId === 'all' || item.category === categoryId);
+
+                if (matchesQuery && matchesCategory) {
+                    results.push(item);
+                }
+            });
+
+            return results;
+        }
+
+        async function renderResults(results) { // Keep async
+            resultsArea.innerHTML = '';
+            noResultsMessage.style.display = 'none';
+            maybeTryContainer.style.display = 'none';
+            paginationContainer.style.display = 'none';
+
+            if (results.length === 0) {
+                noResultsMessage.style.display = 'block';
+                const query = searchInput.value.toLowerCase();
+                const relevantCategories = categories.filter(cat =>
+                    cat.id !== currentCategory && cat.keywords.some(kw => query.includes(kw))
+                );
+
+                if (relevantCategories.length > 0) {
+                    maybeTryContainer.style.display = 'block';
+                    maybeTryCategories.innerHTML = '';
+                    relevantCategories.forEach(cat => {
+                        const button = document.createElement('button');
+                        button.className = 'category-button';
+                        button.textContent = cat.name;
+                        button.addEventListener('click', () => {
+                            updateCategorySelection(cat.id);
+                            handleSearch();
+                        });
+                        maybeTryCategories.appendChild(button);
+                    });
+                }
+                return;
+            }
+
+            allSearchResults = results;
+            renderPaginatedResults();
+            updatePaginationControls();
+        }
+
+        function renderPaginatedResults() {
+            resultsArea.innerHTML = '';
+            const startIndex = (currentPage - 1) * resultsPerPage;
+            const endIndex = startIndex + resultsPerPage;
+            const paginatedResults = allSearchResults.slice(startIndex, endIndex);
+
+            // Check connection type for low-data mode
+            const connection = navigator.connection || { effectiveType: '4g' };
+            const isLowDataMode = connection.effectiveType.includes('2g') || connection.effectiveType.includes('3g');
+            if (isLowDataMode) {
+                document.body.classList.add('low-data-mode');
+            } else {
+                document.body.classList.remove('low-data-mode');
+            }
+
+            paginatedResults.forEach(result => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'search-result';
+
+                const query = searchInput.value.toLowerCase().trim();
+                let highlightedDescription = result.description;
+                if (query) {
+                    const regex = new RegExp(`(${query.split(' ').join('|')})`, 'gi');
+                    highlightedDescription = result.description.replace(regex, '<strong>$&</strong>');
+                }
+
+                // Simulate traffic saved for each result
+                // Assuming an average webpage is ~2MB (2048 KB)
+                // And TextFlow view saves ~90% (1843.2 KB)
+                // A normal click saves 0KB (it loads the full page)
+                // A TextFlow click saves ~1843.2 KB (simulated)
+                const simulatedPageSize = 2048; // KB
+                const simulatedTextFlowSaving = simulatedPageSize * 0.9; // KB
+
+                resultDiv.innerHTML = `
+                    <div class="result-title">
+                        <a href="${result.url}" target="_blank" rel="noopener noreferrer">
+                            ${result.title}
+                        </a>
+                    </div>
+                    <div class="result-url">${result.url}</div>
+                    <div class="result-description">${highlightedDescription}</div>
+                    <div class="result-actions">
+                        <button class="result-action-button" onclick="window.open('${result.url}', '_blank'); updateTrafficCounter(0);">Open</button>
+                        <button class="result-action-button" onclick="showTextflowView('${result.title.replace(/'/g, "\\'")}', '${result.plainTextContent.replace(/'/g, "\\'")}', ${simulatedTextFlowSaving});">Open with TextFlow</button>
+                    </div>
+                `;
+                resultsArea.appendChild(resultDiv);
+            });
+
+            paginationContainer.style.display = 'flex';
+        }
+
+        function updatePaginationControls() {
+            const totalPages = Math.ceil(allSearchResults.length / resultsPerPage);
+            prevPageButton.disabled = currentPage === 1;
+            nextPageButton.disabled = currentPage === totalPages || totalPages === 0;
+
+            pageNumbersContainer.innerHTML = '';
+            for (let i = 1; i <= totalPages; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.className = `page-number-button ${i === currentPage ? 'active' : ''}`;
+                pageButton.textContent = i;
+                pageButton.addEventListener('click', () => {
+                    currentPage = i;
+                    renderPaginatedResults();
+                    updatePaginationControls();
+                });
+                pageNumbersContainer.appendChild(pageButton);
+            }
+        }
+
+        // Main Search Handler
+        async function handleSearch() {
+            let query = searchInput.value.trim();
+            let effectiveCategory = currentCategory;
+
+            // Show loading indicator before fetching
+            resultsArea.innerHTML = '<p class="no-results-message">Searching the web...</p>';
+            noResultsMessage.style.display = 'block';
+            paginationContainer.style.display = 'none';
+            maybeTryContainer.style.display = 'none';
+
+
+            const hybridMatch = query.match(/^(.*?)\s*:([a-zA-Z]+)$/);
+            if (hybridMatch) {
+                query = hybridMatch[1].trim();
+                const requestedCategoryName = hybridMatch[2].toLowerCase();
+                const foundCategory = categories.find(cat => cat.id === requestedCategoryName || cat.name.toLowerCase() === requestedCategoryName);
+                if (foundCategory) {
+                    effectiveCategory = foundCategory.id;
+                    updateCategorySelection(effectiveCategory);
+                }
+            }
+
+            // Auto-detect category for "All" based on keywords
+            if (effectiveCategory === 'all' && query) {
+                const lowerCaseQuery = query.toLowerCase();
+                for (const cat of categories) {
+                    if (cat.id !== 'all' && cat.keywords.some(kw => lowerCaseQuery.includes(kw))) {
+                        effectiveCategory = cat.id;
+                        updateCategorySelection(effectiveCategory);
+                        break;
+                    }
+                }
+            }
+
+            if (!query) {
+                resultsArea.innerHTML = '<p class="no-results-message">Enter a search query.</p>';
+                noResultsMessage.style.display = 'none';
+                maybeTryContainer.style.display = 'none';
+                paginationContainer.style.display = 'none';
+                return;
+            }
+
+            saveSearchHistory(query);
+            currentPage = 1;
+            
+            // Attempt to get real results first
+            let results = await fetchRealSearchResults(query);
+
+            // If no real results, fall back to local mock data
+            if (results.length === 0) {
+                results = getLocalMockData(query, effectiveCategory);
+            } else {
+                // If real results are found, filter them by category if applicable
+                results = results.filter(item =>
+                    effectiveCategory === 'all' || item.category === effectiveCategory ||
+                    categories.find(cat => cat.id === effectiveCategory)?.keywords.some(kw => item.description.toLowerCase().includes(kw) || item.title.toLowerCase().includes(kw))
+                );
+            }
+
+            renderResults(results);
+        }
+
+        // TextFlow View Function
+        window.showTextflowView = function(title, content, simulatedBytesSaved) {
+            textflowViewTitle.textContent = title;
+            textflowViewContent.textContent = content;
+            textflowViewModal.style.display = 'flex';
+            updateTrafficCounter(simulatedBytesSaved);
+        };
+
+        // Event Listeners
+        searchButton.addEventListener('click', handleSearch);
+
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSearch();
+            }
+        });
+
+        // Debounce search history loading
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(loadSearchHistory, 300);
+        });
+
+        searchInput.addEventListener('focus', loadSearchHistory);
+
+        searchInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                searchHistoryDropdown.style.display = 'none';
+            }, 100);
+        });
+
+        clearHistoryButton.addEventListener('click', clearLocalHistory);
+
+        prevPageButton.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPaginatedResults();
+                updatePaginationControls();
+            }
+        });
+
+        nextPageButton.addEventListener('click', () => {
+            const totalPages = Math.ceil(allSearchResults.length / resultsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPaginatedResults();
+                updatePaginationControls();
+            }
+        });
+
+        aboutUsButton.addEventListener('click', () => {
+            aboutUsModal.style.display = 'flex';
+        });
+
+        closeModalButton.addEventListener('click', () => {
+            aboutUsModal.style.display = 'none';
+        });
+
+        aboutUsModal.addEventListener('click', (e) => {
+            if (e.target === aboutUsModal) {
+                aboutUsModal.style.display = 'none';
+            }
+        });
+
+        closeTextflowViewModalButton.addEventListener('click', () => {
+            textflowViewModal.style.display = 'none';
+        });
+
+        textflowViewModal.addEventListener('click', (e) => {
+            if (e.target === textflowViewModal) {
+                textflowViewModal.style.display = 'none';
+            }
+        });
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && document.activeElement !== searchInput) {
+                e.preventDefault();
+                searchInput.focus();
+            }
+            if (e.key === 'Tab') {
+                const focusableCategoryButtons = Array.from(document.querySelectorAll('.category-button'));
+                const focusedIndex = focusableCategoryButtons.indexOf(document.activeElement);
+
+                if (e.shiftKey) {
+                    if (focusedIndex > 0) {
+                        e.preventDefault();
+                        focusableCategoryButtons[focusedIndex - 1].focus();
+                    } else if (focusedIndex === 0) {
+                        e.preventDefault();
+                        searchInput.focus();
+                    }
+                } else {
+                    if (focusedIndex < focusableCategoryButtons.length - 1) {
+                        e.preventDefault();
+                        focusableCategoryButtons[focusedIndex + 1].focus();
+                    } else if (focusedIndex === focusableCategoryButtons.length - 1) {
+                        e.preventDefault();
+                        searchButton.focus();
+                    } else if (document.activeElement === searchInput) {
+                        e.preventDefault();
+                        if (focusableCategoryButtons.length > 0) {
+                            focusableCategoryButtons[0].focus();
+                        }
+                    }
+                }
+            }
+        });
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(registration => {
+                        // console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(err => {
+                        // console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+
+        // Initial Setup
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeCategories();
+            // Initial check for low-data mode
+            const connection = navigator.connection || { effectiveType: '4g' };
+            if (connection.effectiveType.includes('2g') || connection.effectiveType.includes('3g')) {
+                document.body.classList.add('low-data-mode');
+            }
+            // Listen for connection changes
+            if (navigator.connection) {
+                navigator.connection.addEventListener('change', () => {
+                    if (navigator.connection.effectiveType.includes('2g') || navigator.connection.effectiveType.includes('3g')) {
+                        document.body.classList.add('low-data-mode');
+                    } else {
+                        document.body.classList.remove('low-data-mode');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
+
