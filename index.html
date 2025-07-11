@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ByteWise Search</title>
+    <!-- Critical CSS for immediate rendering -->
+    <style>
+        body{font-family:monospace,sans-serif;margin:0;padding:20px;display:flex;flex-direction:column;align-items:center;min-height:100vh;background-color:#1a1a1a;color:#e0e0e0;line-height:1.5;}
+        .container{width:100%;max-width:700px;margin-bottom:20px;}
+        .header{text-align:center;margin-bottom:30px;}
+        .header h1{font-size:32px;margin-bottom:10px;color:#66ccff;}
+        .search-form{display:flex;margin-bottom:15px;border:1px solid #555555;border-radius:0;overflow:hidden;position:relative;}
+        .search-input{flex-grow:1;padding:10px;font-size:16px;border:none;outline:none;background-color:#333333;color:#e0e0e0;}
+        .search-button{padding:10px 15px;font-size:16px;background-color:#66ccff;color:#1a1a1a;border:none;cursor:pointer;}
+        .search-button:hover{background-color:#44aaff;}
+        .categories-container{display:flex;flex-wrap:wrap;justify-content:center;gap:0;margin-bottom:20px;}
+        .category-button{padding:8px 12px;font-size:14px;border:none;background-color:transparent;color:#e0e0e0;cursor:pointer;text-decoration:underline;margin:0 5px;}
+        .category-button:not(:last-child)::after{content:"|";margin-left:10px;color:#888888;}
+        .category-button.active{color:#66ccff;font-weight:bold;}
+        .category-button:hover:not(.active){color:#aaaaaa;}
+        .results-area{width:100%;}
+        .search-result{margin-bottom:20px;padding-bottom:15px;border-bottom:1px solid #333333;}
+        .search-result:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+        .result-title{font-size:18px;margin-bottom:5px;}
+        .result-title a{color:#66ccff;text-decoration:none;}
+        .result-title a:hover{text-decoration:underline;}
+        .result-url{font-size:14px;color:#90ee90;margin-bottom:5px;word-break:break-all;}
+        .result-description{font-size:14px;color:inherit;}
+        .result-description strong{font-weight:bold;color:#ffcc00;}
+        .result-actions{margin-top:10px;}
+        .result-action-button{padding:5px 10px;font-size:13px;background-color:#444444;color:#e0e0e0;border:1px solid #666666;cursor:pointer;margin-right:10px;}
+        .result-action-button:hover{background-color:#555555;}
+        .no-results-message{text-align:center;color:#888888;margin-top:30px;}
+        .maybe-try-container{background-color:#2a2a2a;border:1px solid #444444;padding:10px;margin-top:20px;text-align:center;}
+        .maybe-try-categories button{background-color:#3a3a3a;border:1px solid #555555;color:#66ccff;margin:5px;padding:5px 10px;cursor:pointer;text-decoration:underline;}
+        .maybe-try-categories button:hover{background-color:#4a4a4a;}
+        .pagination-container{display:flex;justify-content:center;align-items:center;margin-top:20px;gap:5px;}
+        .pagination-button{padding:8px 12px;font-size:14px;background-color:#66ccff;color:#1a1a1a;border:none;cursor:pointer;border-radius:0;}
+        .pagination-button:disabled{background-color:#555555;cursor:not-allowed;}
+        .pagination-button.active{background-color:#44aaff;}
+        .page-number-button{padding:8px 12px;font-size:14px;background-color:#333333;color:#e0e0e0;border:1px solid #555555;cursor:pointer;border-radius:0;}
+        .page-number-button.active{background-color:#66ccff;color:#1a1a1a;border-color:#66ccff;}
+        .footer-controls{display:flex;justify-content:center;flex-wrap:wrap;gap:15px;margin-top:30px;padding-top:20px;border-top:1px solid #333333;width:100%;max-width:700px;}
+        .footer-button{padding:8px 15px;font-size:14px;border:1px solid #555555;border-radius:0;background-color:#333333;color:#e0e0e0;cursor:pointer;}
+        .footer-button:hover{background-color:#444444;}
+        .search-history-dropdown{position:absolute;width:calc(100% - 2px);max-height:200px;overflow-y:auto;background-color:#333333;border:1px solid #555555;border-top:none;z-index:100;box-sizing:border-box;left:0;top:100%;}
+        .history-item{padding:8px 10px;cursor:pointer;font-size:14px;color:#e0e0e0;}
+        .history-item:hover{background-color:#444444;}
+        .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background-color:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:1000;}
+        .modal-content{background-color:#222222;padding:25px;border-radius:0;width:90%;max-width:500px;position:relative;border:1px solid #555555;max-height:90vh;overflow-y:auto;}
+        .modal-close-button{position:absolute;top:10px;right:15px;font-size:24px;cursor:pointer;color:#888888;}
+        .modal-close-button:hover{color:#e0e0e0;}
+        .traffic-indicator{font-size:12px;color:#90ee90;margin-top:10px;text-align:center;}
+        .traffic-message{font-size:14px;color:#90ee90;margin-top:10px;text-align:center;} /* Added for traffic message */
+
+        /* Ultra-low data mode styles */
+        .ultra-low-data .result-description {
+            display: none; /* Hide description in ultra-low data mode */
+        }
+        .ultra-low-data .result-url {
+            font-size: 12px; /* Smaller URL font size */
+        }
+        .ultra-low-data .category-button:not(.active) {
+            display: none; /* Hide inactive category buttons */
+        }
+
+        /* Loading indicator styles */
+        .loading-indicator {
+            text-align: center;
+            color: #66ccff;
+            margin-top: 20px;
+            font-size: 1.2em;
+            animation: pulse 1.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        /* Trending searches section */
+        .trending-searches-container {
+            width: 100%;
+            max-width: 700px;
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #2a2a2a;
+            border: 1px solid #444444;
+            text-align: center;
+        }
+        .trending-searches-container h3 {
+            color: #66ccff;
+            margin-bottom: 15px;
+        }
+        .trending-searches-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        .trending-search-item {
+            background-color: #3a3a3a;
+            color: #e0e0e0;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            border: 1px solid #555555;
+        }
+        .trending-search-item:hover {
+            background-color: #4a4a4a;
+            color: #66ccff;
+        }
+
+        /* Contribute Modal specific styles */
+        .contribute-form label {
+            display: block;
+            margin-bottom: 8px;
+            color: #e0e0e0;
+            text-align: left;
+        }
+        .contribute-form input[type="text"],
+        .contribute-form textarea,
+        .contribute-form select {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #555555;
+            background-color: #333333;
+            color: #e0e0e0;
+            border-radius: 0;
+        }
+        .contribute-form textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        .contribute-form button {
+            padding: 10px 20px;
+            background-color: #66ccff;
+            color: #1a1a1a;
+            border: none;
+            cursor: pointer;
+            border-radius: 0;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        .contribute-form button:hover {
+            background-color: #44aaff;
+        }
+        .contribute-info {
+            font-size: 0.9em;
+            color: #aaaaaa;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .contribute-info a {
+            color: #66ccff;
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body class="dark">
+
+    <div class="container">
+        <div class="header">
+            <h1>ByteWise Search</h1>
+            <p>Fast search with traffic saving. Choose a category for more precise results!</p>
+        </div>
+
+        <div class="search-form-wrapper" style="position: relative; width: 100%; max-width: 700px;">
+            <div class="search-form">
+                <input type="text" id="search-input" placeholder="Try: waterfalls photos" class="search-input">
+                <button id="search-button" class="search-button">Search</button>
+            </div>
+            <div id="search-history-dropdown" class="search-history-dropdown" style="display: none;"></div>
+        </div>
+
+        <div id="categories-container" class="categories-container">
+        </div>
+
+        <div id="results-area" class="results-area">
+            <p id="no-results-message" class="no-results-message" style="display: none;">
+                No results found. Try a different query or category.
+            </p>
+            <div id="loading-indicator" class="loading-indicator" style="display: none;">
+                Searching...
+            </div>
+            <div id="maybe-try-container" class="maybe-try-container" style="display: none;">
+                <p>Maybe you were looking in:</p>
+                <div id="maybe-try-categories" style="display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 10px;"></div>
+            </div>
+        </div>
+
+        <div id="pagination-container" class="pagination-container" style="display: none;">
+            <button id="prev-page" class="pagination-button" disabled>Previous</button>
+            <div id="page-numbers" style="display: flex; gap: 5px;"></div>
+            <button id="next-page" class="pagination-button">Next</button>
+        </div>
+
+        <div class="footer-controls">
+            <button id="clear-history-button" class="footer-button">
+                Clear History
+            </button>
+            <button id="clear-all-data-button" class="footer-button">
+                Clear All Data
+            </button>
+            <button id="contribute-button" class="footer-button">
+                Contribute
+            </button>
+            <button id="about-us-button" class="footer-button">
+                About Us
+            </button>
+        </div>
+        <div id="traffic-indicator" class="traffic-indicator">
+            Simulated Traffic Saved: <span id="traffic-count">0 KB</span>
+        </div>
+        <div id="traffic-message" class="traffic-message"></div>
+
+        <div id="trending-searches-container" class="trending-searches-container">
+            <h3>Trending Searches</h3>
+            <div id="trending-searches-list" class="trending-searches-list">
+                <!-- Trending searches will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- About Us Modal -->
+    <div id="about-us-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button id="close-modal-button" class="modal-close-button">&times;</button>
+            <h2>About Us</h2>
+            <p>
+                We are "ByteWise Search", designed for fast and efficient information retrieval with minimal internet traffic consumption.
+            </p>
+            <p>
+                Our mission:
+                <ul>
+                    <li><strong>Speed:</strong> Optimized for instant response.</li>
+                    <li><strong>Economy:</strong> Category selection helps save your traffic by loading only necessary data.</li>
+                    <li><strong>Privacy:</strong> We do not collect your personal data; all search history is stored locally.</li>
+                </ul>
+            </p>
+            <p>
+                <strong>Important:</strong> This version of the search engine is a demonstration of a **community-driven, local search engine**. All search results are retrieved from an internal, curated and synthetically generated database, mimicking user contributions. This setup is designed for maximum traffic economy by performing all operations locally in your browser, without relying on external APIs for search results.
+            </p>
+            <p>Thank you for choosing us!</p>
+        </div>
+    </div>
+
+    <!-- Contribute Modal -->
+    <div id="contribute-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button id="close-contribute-modal-button" class="modal-close-button">&times;</button>
+            <h2>Contribute a Link</h2>
+            <form id="contribute-form" class="contribute-form">
+                <label for="contribute-query">Search Query (e.g., "dog breeds", "weather Paris")</label>
+                <input type="text" id="contribute-query" required>
+
+                <label for="contribute-title">Link Title</label>
+                <input type="text" id="contribute-title" required>
+
+                <label for="contribute-url">URL (e.g., https://example.com/page)</label>
+                <input type="text" id="contribute-url" required pattern="https?://.*" title="Please enter a valid URL starting with http:// or https://">
+
+                <label for="contribute-description">Description</label>
+                <textarea id="contribute-description" required></textarea>
+
+                <label for="contribute-category">Category</label>
+                <select id="contribute-category" required>
+                    <!-- Categories will be populated dynamically -->
+                </select>
+                
+                <button type="submit">Add Link Locally</button>
+                <button type="button" id="export-contributions-button">Export My Contributions</button>
+            </form>
+            <p class="contribute-info">
+                Your contributions are saved locally in your browser. To share them with the community and potentially include them in future public versions of ByteWise Search, please export your contributions and submit them as a Pull Request on our <a href="https://github.com/your-repo-link" target="_blank" rel="noopener noreferrer">GitHub repository</a>.
+            </p>
+        </div>
+    </div>
+
+    <script defer>
+        // Polyfills for older browsers
+        if (!NodeList.prototype.forEach) {
+            NodeList.prototype.forEach = Array.prototype.forEach;
+        }
+
+        // DOM Elements
+        const searchInput = document.getElementById('search-input');
+        const searchButton = document.getElementById('search-button');
+        const categoriesContainer = document.getElementById('categories-container');
+        const resultsArea = document.getElementById('results-area');
+        const noResultsMessage = document.getElementById('no-results-message');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const maybeTryContainer = document.getElementById('maybe-try-container');
+        const maybeTryCategories = document.getElementById('maybe-try-categories');
+        const paginationContainer = document.getElementById('pagination-container');
+        const prevPageButton = document.getElementById('prev-page');
+        const nextPageButton = document.getElementById('next-page');
+        const pageNumbersContainer = document.getElementById('page-numbers');
+        const clearHistoryButton = document.getElementById('clear-history-button');
+        const clearAllDataButton = document.getElementById('clear-all-data-button');
+        const contributeButton = document.getElementById('contribute-button'); // New contribute button
+        const searchHistoryDropdown = document.getElementById('search-history-dropdown');
+        const aboutUsButton = document.getElementById('about-us-button');
+        const aboutUsModal = document.getElementById('about-us-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const trafficCountElement = document.getElementById('traffic-count');
+        const trafficMessageElement = document.getElementById('traffic-message');
+        const trendingSearchesContainer = document.getElementById('trending-searches-container');
+        const trendingSearchesList = document.getElementById('trending-searches-list');
+
+        // Contribute Modal Elements
+        const contributeModal = document.getElementById('contribute-modal');
+        const closeContributeModalButton = document.getElementById('close-contribute-modal-button');
+        const contributeForm = document.getElementById('contribute-form');
+        const contributeQueryInput = document.getElementById('contribute-query');
+        const contributeTitleInput = document.getElementById('contribute-title');
+        const contributeUrlInput = document.getElementById('contribute-url');
+        const contributeDescriptionInput = document.getElementById('contribute-description');
+        const contributeCategorySelect = document.getElementById('contribute-category');
+        const exportContributionsButton = document.getElementById('export-contributions-button');
+
+
+        // Global State
+        let currentCategory = 'all';
+        let searchHistory = JSON.parse(localStorage.getItem('searchHistory')) || [];
+        let currentPage = 1;
+        const resultsPerPage = 5;
+        let allSearchResults = [];
+        let simulatedTrafficSaved = parseFloat(localStorage.getItem('simulatedTrafficSaved')) || 0;
+
+        // Initialize Web Worker
+        const searchWorker = new Worker('worker.js');
+        let workerReady = false; // Flag to indicate if worker has loaded its data
+
+        // Category Data (Extended and General)
+        const categories = [
+            { id: 'all', name: 'All', keywords: [] },
+            { id: 'web', name: 'Web', keywords: ['website', 'site', 'page', 'info', 'blog', 'article', 'online', 'internet'] },
+            { id: 'images', name: 'Images', keywords: ['photo', 'picture', 'pics', 'gallery', 'art', 'visual', 'graphic'] },
+            { id: 'videos', name: 'Videos', keywords: ['video', 'youtube', 'clip', 'movie', 'film', 'stream', 'tv'] },
+            { id: 'news', name: 'News', keywords: ['news', 'latest', 'updates', 'headlines', 'current events', 'breaking', 'report'] },
+            { id: 'maps', name: 'Maps', keywords: ['map', 'location', 'address', 'route', 'directions', 'places', 'navigate', 'geo'] },
+            { id: 'shopping', name: 'Shopping', keywords: ['buy', 'shop', 'product', 'price', 'store', 'deal', 'ecommerce', 'retail', 'sale'] },
+            { id: 'books', name: 'Books', keywords: ['book', 'literature', 'novel', 'author', 'read', 'library', 'ebook', 'story'] },
+            { id: 'finance', name: 'Finance', keywords: ['stock', 'market', 'economy', 'money', 'investing', 'business', 'funds', 'currency', 'bank'] },
+            { id: 'science', name: 'Science', keywords: ['science', 'research', 'physics', 'biology', 'chemistry', 'astronomy', 'discovery', 'experiment', 'study'] },
+            { id: 'technology', name: 'Technology', keywords: ['tech', 'gadget', 'software', 'hardware', 'app', 'innovation', 'IT', 'computer', 'digital', 'mobile'] },
+            { id: 'health', name: 'Health', keywords: ['health', 'medicine', 'illness', 'symptom', 'treatment', 'wellness', 'diet', 'fitness', 'doctor', 'hospital'] },
+            { id: 'education', name: 'Education', keywords: ['learn', 'course', 'school', 'university', 'study', 'tutorial', 'knowledge', 'academy', 'class', 'lesson'] },
+            { id: 'travel', name: 'Travel', keywords: ['travel', 'destination', 'flight', 'hotel', 'trip', 'vacation', 'tourism', 'journey', 'explore'] },
+            { id: 'sports', name: 'Sports', keywords: ['sport', 'game', 'team', 'score', 'match', 'athlete', 'league', 'championship', 'play'] },
+            { id: 'music', name: 'Music', keywords: ['song', 'artist', 'album', 'band', 'genre', 'listen', 'audio', 'concert'] },
+            { id: 'recipes', name: 'Recipes', keywords: ['recipe', 'cook', 'food', 'dish', 'ingredient', 'kitchen', 'cooking', 'cuisine'] },
+            { id: 'code', name: 'Code', keywords: ['programming', 'javascript', 'python', 'html', 'css', 'development', 'coding', 'developer', 'software'] },
+            // 5 new general categories
+            { id: 'community', name: 'Community', keywords: ['forum', 'social', 'blog', 'network', 'group', 'discussion', 'chat', 'online community'] },
+            { id: 'reference', name: 'Reference', keywords: ['dictionary', 'encyclopedia', 'glossary', 'definition', 'quote', 'facts', 'data', 'information'] },
+            { id: 'entertainment', name: 'Entertainment', keywords: ['games', 'movies', 'tv series', 'hobbies', 'fun', 'leisure', 'art', 'culture', 'show'] },
+            { id: 'business', name: 'Business', keywords: ['companies', 'startup', 'industry', 'career', 'job', 'management', 'economy', 'corporate'] },
+            { id: 'environment', name: 'Environment', keywords: ['ecology', 'nature', 'climate', 'sustainability', 'pollution', 'conservation', 'green', 'earth'] }
+        ];
+
+        // Curated trending searches (can be updated manually)
+        const trendingSearches = [
+            "Latest AI breakthroughs",
+            "Sustainable energy solutions",
+            "Space exploration updates",
+            "Healthy recipes for beginners",
+            "Cybersecurity tips 2024",
+            "How to learn Python",
+            "Best travel destinations Europe",
+            "Global economic forecast",
+            "New virtual reality games",
+            "History of ancient civilizations"
+        ];
+
+        // IndexedDB functions
+        async function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('ByteWiseCache', 2); // Increment version for new object store
+                
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('searchResults')) {
+                        db.createObjectStore('searchResults', { keyPath: 'query' });
+                    }
+                    if (!db.objectStoreNames.contains('userContributions')) { // New object store for user contributions
+                        db.createObjectStore('userContributions', { keyPath: 'id', autoIncrement: true });
+                    }
+                };
+                
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async function cacheResults(query, results) {
+            try {
+                const db = await initDB();
+                const tx = db.transaction('searchResults', 'readwrite');
+                tx.objectStore('searchResults').put({ query, results, timestamp: Date.now() });
+            } catch (e) {
+                console.error("Error caching results to IndexedDB:", e);
+            }
+        }
+
+        async function getCachedResults(query) {
+            try {
+                const db = await initDB();
+                const tx = db.transaction('searchResults', 'readonly');
+                const request = tx.objectStore('searchResults').get(query);
+                
+                return new Promise((resolve) => {
+                    request.onsuccess = (e) => {
+                        const data = e.target.result;
+                        // Check cache freshness (1 week)
+                        const ONE_WEEK = 604800000; // milliseconds
+                        if (data && Date.now() - data.timestamp < ONE_WEEK) {
+                            resolve(data.results);
+                        } else {
+                            resolve(null); // Cache expired or not found
+                        }
+                    };
+                    request.onerror = (e) => {
+                        console.error("Error getting cached results:", e.target.error);
+                        resolve(null);
+                    };
+                });
+            } catch (e) {
+                console.error("Error initializing IndexedDB for cache retrieval:", e);
+                return null;
+            }
+        }
+
+        // User Contributions IndexedDB functions
+        async function addUserContribution(contribution) {
+            try {
+                const db = await initDB();
+                const tx = db.transaction('userContributions', 'readwrite');
+                await tx.objectStore('userContributions').add(contribution);
+                console.log("User contribution added locally.");
+                searchWorker.postMessage({ type: 'reloadLocalData' }); // Tell worker to reload data
+            } catch (e) {
+                console.error("Error adding user contribution:", e);
+                showCustomAlert('Failed to add contribution. Error: ' + e.message);
+            }
+        }
+
+        async function getAllUserContributions() {
+            try {
+                const db = await initDB();
+                const tx = db.transaction('userContributions', 'readonly');
+                const request = tx.objectStore('userContributions').getAll();
+                return new Promise((resolve) => {
+                    request.onsuccess = (e) => resolve(e.target.result);
+                    request.onerror = (e) => {
+                        console.error("Error getting all user contributions:", e.target.error);
+                        resolve([]);
+                    };
+                });
+            } catch (e) {
+                console.error("Error initializing IndexedDB for contributions retrieval:", e);
+                return [];
+            }
+        }
+
+        // UI Initialization
+        function initializeCategories() {
+            categoriesContainer.innerHTML = '';
+            categories.forEach(cat => {
+                const button = document.createElement('button');
+                button.id = `category-${cat.id}`;
+                button.className = `category-button ${currentCategory === cat.id ? 'active' : ''}`;
+                button.textContent = cat.name;
+                button.title = cat.name;
+                button.addEventListener('click', () => {
+                    updateCategorySelection(cat.id);
+                    // If user changes category, perform search with current query
+                    if (searchInput.value.trim() !== '') {
+                        handleSearch();
+                    }
+                });
+                categoriesContainer.appendChild(button);
+            });
+
+            // Populate categories in contribute modal
+            contributeCategorySelect.innerHTML = '';
+            categories.forEach(cat => {
+                if (cat.id !== 'all') { // 'All' is not a specific category for a link
+                    const option = document.createElement('option');
+                    option.value = cat.id;
+                    option.textContent = cat.name;
+                    contributeCategorySelect.appendChild(option);
+                }
+            });
+        }
+
+        function updateCategorySelection(selectedId) {
+            currentCategory = selectedId;
+            document.querySelectorAll('.category-button').forEach(button => {
+                if (button.id === `category-${selectedId}`) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+        }
+
+        // Local Storage Functions
+        function saveSearchHistory(query) {
+            const trimmedQuery = query.trim();
+            if (trimmedQuery && !searchHistory.includes(trimmedQuery)) {
+                searchHistory.unshift(trimmedQuery);
+                searchHistory = searchHistory.slice(0, 20);
+                localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+            }
+        }
+
+        function loadSearchHistory() {
+            searchHistoryDropdown.innerHTML = '';
+            if (searchHistory.length === 0) {
+                searchHistoryDropdown.style.display = 'none';
+                return;
+            }
+
+            searchHistory.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.textContent = item;
+                div.addEventListener('click', () => {
+                    searchInput.value = item;
+                    searchHistoryDropdown.style.display = 'none';
+                    handleSearch();
+                });
+                searchHistoryDropdown.appendChild(div);
+            });
+            searchHistoryDropdown.style.display = 'block';
+        }
+
+        function clearLocalHistory() {
+            searchHistory = [];
+            localStorage.removeItem('searchHistory');
+            loadSearchHistory();
+            showCustomAlert('Search history cleared!');
+        }
+
+        async function clearAllData() {
+            // Clear Local Storage
+            localStorage.clear();
+            searchHistory = [];
+            simulatedTrafficSaved = 0;
+            updateTrafficCounter(0); // Reset display
+            loadSearchHistory(); // Update history dropdown
+
+            // Clear IndexedDB
+            try {
+                const db = await initDB();
+                const tx = db.transaction(['searchResults', 'userContributions'], 'readwrite'); // Clear both stores
+                await tx.objectStore('searchResults').clear();
+                await tx.objectStore('userContributions').clear();
+                console.log("IndexedDB cleared.");
+            } catch (e) {
+                console.error("Error clearing IndexedDB:", e);
+            }
+
+            // Clear Service Worker Caches
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+                console.log("Service Worker caches cleared.");
+            }
+
+            // Reload worker data (to clear its in-memory user contributions)
+            workerReady = false;
+            searchWorker.postMessage({ type: 'loadData' }); // Re-trigger worker data load
+
+            showCustomAlert('All local data (history, cache, contributions) has been cleared!');
+            // Optionally, reload the page to ensure a clean state
+            // window.location.reload();
+        }
+
+
+        // Custom Alert Modal (replaces window.alert)
+        function showCustomAlert(message) {
+            const alertModal = document.createElement('div');
+            alertModal.className = 'modal-overlay';
+            alertModal.innerHTML = `
+                <div class="modal-content">
+                    <button class="modal-close-button">&times;</button>
+                    <p class="modal-text-content">${message}</p>
+                </div>
+            `;
+            document.body.appendChild(alertModal);
+
+            const closeButton = alertModal.querySelector('.modal-close-button');
+            closeButton.addEventListener('click', () => {
+                document.body.removeChild(alertModal);
+            });
+
+            alertModal.addEventListener('click', (e) => {
+                if (e.target === alertModal) {
+                    document.body.removeChild(alertModal);
+                }
+            });
+        }
+
+        // Traffic Indicator & Analytics
+        function updateTrafficCounter(bytesSaved) {
+            simulatedTrafficSaved += bytesSaved / 1024; // Convert bytes to KB
+            trafficCountElement.textContent = `${simulatedTrafficSaved.toFixed(2)} KB`;
+            localStorage.setItem('simulatedTrafficSaved', simulatedTrafficSaved.toFixed(2)); // Save to local storage
+
+            const trafficData = JSON.parse(localStorage.getItem('trafficData') || '[]');
+            trafficData.push({
+                date: new Date().toISOString(),
+                saved: bytesSaved
+            });
+            // Keep only the last 100 entries to prevent excessive storage
+            localStorage.setItem('trafficData', JSON.stringify(trafficData.slice(-100)));
+            
+            if (simulatedTrafficSaved > 1024) {
+                const mbSaved = (simulatedTrafficSaved / 1024).toFixed(2);
+                trafficMessageElement.textContent = `You have saved ${mbSaved} MB of traffic!`;
+            } else {
+                trafficMessageElement.textContent = ''; // Clear message if less than 1MB
+            }
+        }
+
+        // Traffic optimization for mobile devices
+        function optimizeForConnection() {
+            const connection = navigator.connection || { effectiveType: '4g' };
+            const isSlowConnection = connection.effectiveType.includes('2g') || 
+                                    connection.effectiveType.includes('3g') ||
+                                    connection.saveData === true;
+            
+            if (isSlowConnection) {
+                document.body.classList.add('ultra-low-data');
+            } else {
+                document.body.classList.remove('ultra-low-data');
+            }
+        }
+
+        // Adaptive Search Logic (main entry point for search)
+        async function adaptiveSearch(query) {
+            loadingIndicator.style.display = 'block'; // Show loading indicator
+            resultsArea.innerHTML = ''; // Clear previous results
+            noResultsMessage.style.display = 'none';
+            paginationContainer.style.display = 'none';
+            maybeTryContainer.style.display = 'none';
+
+            // Try cache first
+            const cachedResults = await getCachedResults(query);
+            if (cachedResults) {
+                console.log("Results from IndexedDB cache.");
+                loadingIndicator.style.display = 'none'; // Hide loading indicator
+                return cachedResults;
+            }
+            
+            // Send search query to Web Worker for local search
+            console.log("Sending search query to Web Worker for local search.");
+            return new Promise((resolve, reject) => {
+                const handleWorkerMessage = (e) => {
+                    if (e.data.type === 'workerReady') {
+                        workerReady = true;
+                        // If worker just became ready, send the search query now
+                        searchWorker.postMessage({ type: 'search', query, categoryId: currentCategory });
+                    } else if (e.data.type === 'searchResults') {
+                        loadingIndicator.style.display = 'none'; // Hide loading indicator
+                        searchWorker.removeEventListener('message', handleWorkerMessage); // Remove listener after receiving results
+                        // Cache results received from worker
+                        cacheResults(query, e.data.results);
+                        resolve(e.data.results);
+                    }
+                };
+                searchWorker.addEventListener('message', handleWorkerMessage);
+
+                if (!workerReady) {
+                    // If worker not ready, ask it to load data first. It will then send 'workerReady'.
+                    searchWorker.postMessage({ type: 'loadData' });
+                } else {
+                    // If worker is already ready, send the search query directly.
+                    searchWorker.postMessage({ type: 'search', query, categoryId: currentCategory });
+                }
+            });
+        }
+
+        async function renderResults(results) {
+            resultsArea.innerHTML = '';
+            noResultsMessage.style.display = 'none';
+            maybeTryContainer.style.display = 'none';
+            paginationContainer.style.display = 'none';
+
+            if (results.length === 0) {
+                noResultsMessage.style.display = 'block';
+                const query = searchInput.value.toLowerCase();
+                const relevantCategories = categories.filter(cat =>
+                    cat.id !== currentCategory && cat.keywords.some(kw => query.includes(kw))
+                );
+
+                if (relevantCategories.length > 0) {
+                    maybeTryContainer.style.display = 'block';
+                    maybeTryCategories.innerHTML = '';
+                    relevantCategories.forEach(cat => {
+                        const button = document.createElement('button');
+                        button.className = 'category-button';
+                        button.textContent = cat.name;
+                        button.addEventListener('click', () => {
+                            updateCategorySelection(cat.id);
+                            handleSearch();
+                        });
+                        maybeTryCategories.appendChild(button);
+                    });
+                }
+                return;
+            }
+
+            allSearchResults = results;
+            renderPaginatedResults();
+            updatePaginationControls();
+        }
+
+        function renderPaginatedResults() {
+            resultsArea.innerHTML = '';
+            const startIndex = (currentPage - 1) * resultsPerPage;
+            const endIndex = startIndex + resultsPerPage;
+            const paginatedResults = allSearchResults.slice(startIndex, endIndex);
+
+            // Apply connection optimization styles
+            optimizeForConnection();
+
+            paginatedResults.forEach(result => {
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'search-result';
+
+                const query = searchInput.value.toLowerCase().trim();
+                let highlightedDescription = result.description;
+                if (query) {
+                    const regex = new RegExp(`(${query.split(' ').join('|')})`, 'gi');
+                    highlightedDescription = result.description.replace(regex, '<strong>$&</strong>');
+                }
+
+                resultDiv.innerHTML = `
+                    <div class="result-title">
+                        <a href="${result.url}" target="_blank" rel="noopener noreferrer">
+                            ${result.title}
+                        </a>
+                    </div>
+                    <div class="result-url">${result.url}</div>
+                    <div class="result-description">${highlightedDescription}</div>
+                    <div class="result-actions">
+                        <button class="result-action-button" onclick="window.open('${result.url}', '_blank'); updateTrafficCounter(0);">Open</button>
+                    </div>
+                `;
+                resultsArea.appendChild(resultDiv);
+            });
+
+            paginationContainer.style.display = 'flex';
+        }
+
+        function updatePaginationControls() {
+            const totalPages = Math.ceil(allSearchResults.length / resultsPerPage);
+            prevPageButton.disabled = currentPage === 1;
+            nextPageButton.disabled = currentPage === totalPages || totalPages === 0;
+
+            pageNumbersContainer.innerHTML = '';
+            for (let i = 1; i <= totalPages; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.className = `page-number-button ${i === currentPage ? 'active' : ''}`;
+                pageButton.textContent = i;
+                pageButton.addEventListener('click', () => {
+                    currentPage = i;
+                    renderPaginatedResults();
+                    updatePaginationControls();
+                });
+                pageNumbersContainer.appendChild(pageButton);
+            }
+        }
+
+        // Function to render trending searches
+        function renderTrendingSearches() {
+            trendingSearchesList.innerHTML = '';
+            trendingSearches.forEach(searchQuery => {
+                const item = document.createElement('div');
+                item.className = 'trending-search-item';
+                item.textContent = searchQuery;
+                item.addEventListener('click', () => {
+                    searchInput.value = searchQuery;
+                    handleSearch();
+                });
+                trendingSearchesList.appendChild(item);
+            });
+        }
+
+        // Main Search Handler
+        async function handleSearch() {
+            let query = searchInput.value.trim();
+            let effectiveCategory = currentCategory;
+
+            const hybridMatch = query.match(/^(.*?)\s*:([a-zA-ZА-Яа-яІіЇїЄє]+)$/);
+            if (hybridMatch) {
+                query = hybridMatch[1].trim();
+                const requestedCategoryName = hybridMatch[2].toLowerCase();
+                const foundCategory = categories.find(cat => cat.id === requestedCategoryName || cat.name.toLowerCase() === requestedCategoryName);
+                if (foundCategory) {
+                    effectiveCategory = foundCategory.id;
+                    updateCategorySelection(effectiveCategory);
+                }
+            }
+
+            // Auto-detect category for "All" based on keywords
+            if (effectiveCategory === 'all' && query) {
+                const lowerCaseQuery = query.toLowerCase();
+                for (const cat of categories) {
+                    if (cat.id !== 'all' && cat.keywords.some(kw => lowerCaseQuery.includes(kw))) {
+                        effectiveCategory = cat.id;
+                        updateCategorySelection(effectiveCategory);
+                        break;
+                    }
+                }
+            }
+
+            if (!query) {
+                resultsArea.innerHTML = '<p class="no-results-message">Enter a search query.</p>';
+                noResultsMessage.style.display = 'none';
+                maybeTryContainer.style.display = 'none';
+                paginationContainer.style.display = 'none';
+                loadingIndicator.style.display = 'none'; // Hide loading if no query
+                return;
+            }
+
+            saveSearchHistory(query);
+            currentPage = 1;
+            
+            const results = await adaptiveSearch(query);
+            renderResults(results);
+        }
+
+        // Event Listeners
+        searchButton.addEventListener('click', handleSearch);
+
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSearch();
+            }
+        });
+
+        // Debounce search history loading
+        let searchTimeout;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(loadSearchHistory, 300);
+        });
+
+        searchInput.addEventListener('focus', loadSearchHistory);
+
+        searchInput.addEventListener('blur', () => {
+            setTimeout(() => {
+                searchHistoryDropdown.style.display = 'none';
+            }, 100);
+        });
+
+        clearHistoryButton.addEventListener('click', clearLocalHistory);
+        clearAllDataButton.addEventListener('click', clearAllData); // Event listener for clear all data
+        contributeButton.addEventListener('click', () => { // Open contribute modal
+            contributeModal.style.display = 'flex';
+        });
+        closeContributeModalButton.addEventListener('click', () => { // Close contribute modal
+            contributeModal.style.display = 'none';
+        });
+        contributeModal.addEventListener('click', (e) => { // Close on overlay click
+            if (e.target === contributeModal) {
+                contributeModal.style.display = 'none';
+            }
+        });
+
+        contributeForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const newContribution = {
+                query: contributeQueryInput.value.trim().toLowerCase(),
+                title: contributeTitleInput.value.trim(),
+                url: contributeUrlInput.value.trim(),
+                description: contributeDescriptionInput.value.trim(),
+                category: contributeCategorySelect.value
+            };
+
+            // Basic URL validation
+            try {
+                new URL(newContribution.url);
+            } catch (error) {
+                showCustomAlert('Invalid URL. Please enter a valid URL (e.g., https://example.com).');
+                return;
+            }
+
+            // Extract domain for consistency
+            try {
+                newContribution.domain = new URL(newContribution.url).hostname;
+            } catch (e) {
+                newContribution.domain = 'unknown.com'; // Fallback for invalid URLs
+            }
+
+            await addUserContribution(newContribution);
+            showCustomAlert('Your link has been added to your local search database!');
+            contributeForm.reset();
+            contributeModal.style.display = 'none';
+            handleSearch(); // Re-run search to include new local data
+        });
+
+        exportContributionsButton.addEventListener('click', async () => {
+            const userContributions = await getAllUserContributions();
+            if (userContributions.length === 0) {
+                showCustomAlert('You have no local contributions to export.');
+                return;
+            }
+            const dataStr = JSON.stringify(userContributions, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'my_bytewise_contributions.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showCustomAlert('Your contributions have been exported as my_bytewise_contributions.json!');
+        });
+
+
+        prevPageButton.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderPaginatedResults();
+                updatePaginationControls();
+            }
+        });
+
+        nextPageButton.addEventListener('click', () => {
+            const totalPages = Math.ceil(allSearchResults.length / resultsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderPaginatedResults();
+                updatePaginationControls();
+            }
+        });
+
+        aboutUsButton.addEventListener('click', () => {
+            aboutUsModal.style.display = 'flex';
+        });
+
+        closeModalButton.addEventListener('click', () => {
+            aboutUsModal.style.display = 'none';
+        });
+
+        aboutUsModal.addEventListener('click', (e) => {
+            if (e.target === aboutUsModal) {
+                aboutUsModal.style.display = 'none';
+            }
+        });
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === '/' && document.activeElement !== searchInput) {
+                e.preventDefault();
+                searchInput.focus();
+            }
+            if (e.key === 'Tab') {
+                const focusableCategoryButtons = Array.from(document.querySelectorAll('.category-button'));
+                const focusedIndex = focusableCategoryButtons.indexOf(document.activeElement);
+
+                if (e.shiftKey) {
+                    if (focusedIndex > 0) {
+                        e.preventDefault();
+                        focusableCategoryButtons[focusedIndex - 1].focus();
+                    } else if (focusedIndex === 0) {
+                        e.preventDefault();
+                        searchInput.focus();
+                    }
+                } else {
+                    if (focusedIndex < focusableCategoryButtons.length - 1) {
+                        e.preventDefault();
+                        focusableCategoryButtons[focusedIndex + 1].focus();
+                    } else if (focusedIndex === focusableCategoryButtons.length - 1) {
+                        e.preventDefault();
+                        searchButton.focus();
+                    } else if (document.activeElement === searchInput) {
+                        e.preventDefault();
+                        if (focusableCategoryButtons.length > 0) {
+                            focusableCategoryButtons[0].focus();
+                        }
+                    }
+                }
+            }
+        });
+
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+
+        // Initial Setup
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeCategories();
+            optimizeForConnection(); // Initial check for connection mode
+            updateTrafficCounter(0); // Display initial saved traffic
+            renderTrendingSearches(); // Render trending searches on load
+
+            // Listen for connection changes
+            if (navigator.connection) {
+                navigator.connection.addEventListener('change', optimizeForConnection);
+            }
+
+            // Signal worker to load data
+            searchWorker.postMessage({ type: 'loadData' });
+        });
+    </script>
+</body>
+</html>
+
